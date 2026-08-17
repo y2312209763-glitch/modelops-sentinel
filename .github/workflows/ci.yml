@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.12"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install project and validation tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . PyYAML
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Compile Python sources
+        run: python -m compileall -q src tests
+
+      - name: Validate shell scripts
+        run: bash -n scripts/start_vllm.sh scripts/smoke_test.sh
+
+      - name: Validate JSON and YAML
+        run: |
+          python -m json.tool deploy/grafana/dashboards/vllm-overview.json >/dev/null
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          paths = [
+              Path("deploy/compose.yaml"),
+              *Path("deploy/prometheus").glob("*.yml"),
+              *Path("deploy/grafana/provisioning").rglob("*.yml"),
+          ]
+          for path in paths:
+              with path.open(encoding="utf-8") as stream:
+                  yaml.safe_load(stream)
+              print(f"valid YAML: {path}")
+          PY
+

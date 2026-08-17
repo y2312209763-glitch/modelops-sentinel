@@ -7,4 +7,5 @@ __pycache__/
 audit-report.json
 audit-report.md
 deploy/.env
-
+config/vllm.env
+logs/

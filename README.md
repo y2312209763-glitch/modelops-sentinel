@@ -2,10 +2,11 @@
 
 > 一个可运行的大模型服务部署验证与可观测性审计项目
 
-ModelOps Sentinel 面向 vLLM 的 OpenAI 兼容服务，提供两部分能力：
+ModelOps Sentinel 面向 vLLM 的 OpenAI 兼容服务，将模型启动、接口测试、服务审计和可观测性整合为一个项目，提供三部分能力：
 
-1. 一个零第三方运行时依赖的 Python CLI，用于检查 vLLM 健康、对话返回、Prometheus Metrics 和抓取目标。
-2. 一套 Docker Compose 监控栈，包含 Prometheus、Grafana、Node Exporter，以及可选的 NVIDIA DCGM Exporter。
+1. 参数化 vLLM 启动脚本，用于从脱敏环境配置启动本地模型服务。
+2. 一个零第三方运行时依赖的 Python CLI，用于检查 vLLM 健康、对话返回、Prometheus Metrics 和抓取目标。
+3. 一套 Docker Compose 监控栈，包含 Prometheus、Grafana、Node Exporter，以及可选的 NVIDIA DCGM Exporter。
 
 项目来源于真实模型部署、接口测试与监控实践材料，公开内容已移除内网地址、真实密钥和生产配置。
 
@@ -32,6 +33,26 @@ flowchart TD
     P --> G["Grafana Dashboard"]
 ```
 
+## 端到端链路
+
+```mermaid
+flowchart LR
+    E["vLLM 环境配置"] --> S["启动模型服务"]
+    S --> Q["接口冒烟测试"]
+    Q --> P["Prometheus 采集"]
+    P --> G["Grafana 展示"]
+    G --> R["审计报告"]
+```
+
+对应操作顺序：
+
+1. 复制并修改 `config/vllm.env.example`。
+2. 通过 `scripts/start_vllm.sh` 启动模型。
+3. 通过 `scripts/smoke_test.sh` 验证健康、推理和指标。
+4. 通过 `deploy/compose.yaml` 启动监控栈。
+5. 在 Grafana 查看自动加载的 Dashboard。
+6. 使用 CLI 输出 JSON 或 Markdown 验收报告。
+
 ## 项目结构
 
 ```text
@@ -40,12 +61,17 @@ modelops-sentinel/
 │   ├── auditor.py              # 健康、推理、指标和 Targets 检查
 │   └── cli.py                  # 命令行参数、输出与退出码
 ├── tests/test_auditor.py       # 网络响应模拟和核心逻辑测试
+├── scripts/
+│   ├── start_vllm.sh           # 参数化启动 vLLM
+│   └── smoke_test.sh           # 一键执行服务冒烟测试
+├── config/vllm.env.example     # 模型启动与审计配置模板
 ├── deploy/
 │   ├── compose.yaml            # Prometheus/Grafana/Exporter 监控栈
 │   ├── prometheus/             # 普通版与 GPU 版抓取配置
 │   └── grafana/                # 数据源、Dashboard 自动加载配置
 ├── docs/deployment-guide.md    # vLLM 部署、测试与排障说明
 ├── pyproject.toml              # Python 包和 CLI 入口
+├── .github/workflows/ci.yml    # Python 3.10/3.12 自动测试
 ├── Makefile                    # 常用命令
 └── .env.example                # 审计工具环境变量示例
 ```
@@ -82,6 +108,35 @@ make test
 - Prometheus 存在 DOWN 目标。
 - Markdown 报告生成。
 
+每次提交和 Pull Request 也会通过 GitHub Actions 自动执行这些检查，并验证 Python、Shell、JSON 和 YAML 文件。
+
+## 启动模型服务
+
+先准备模型文件和与 CUDA 环境兼容的 vLLM，再复制配置模板：
+
+```bash
+cp config/vllm.env.example config/vllm.env
+```
+
+至少修改：
+
+- `MODEL_PATH`
+- `SERVED_MODEL_NAME`
+- `VLLM_API_KEY`
+- `TENSOR_PARALLEL_SIZE`
+- 模型需要的 tool/reasoning parser
+
+启动服务：
+
+```bash
+set -a
+source config/vllm.env
+set +a
+./scripts/start_vllm.sh
+```
+
+也可以使用 `make start-vllm`。脚本默认以前台进程运行，便于交给 systemd、Supervisor 或容器平台管理。
+
 ### 3. 审计一个正在运行的服务
 
 ```bash
@@ -91,6 +146,12 @@ export VLLM_API_KEY=replace-me
 export PROMETHEUS_URL=http://127.0.0.1:9090
 
 modelops-sentinel
+```
+
+如果已经配置了 `config/vllm.env`，可以直接执行：
+
+```bash
+make smoke
 ```
 
 示例输出：
@@ -232,4 +293,3 @@ curl -fsS http://127.0.0.1:8000/metrics | less
 ## License
 
 [MIT](LICENSE)
-
