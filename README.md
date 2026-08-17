@@ -282,13 +282,6 @@ curl -fsS http://127.0.0.1:8000/metrics | less
 - [Grafana Prometheus Data Source](https://grafana.com/docs/grafana/latest/datasources/prometheus/configure/)
 - [NVIDIA DCGM Exporter](https://docs.nvidia.com/datacenter/dcgm/latest/installation/install-dcgm-exporter.html)
 
-## AI 协作说明
-
-本项目采用“人负责目标、环境与验证，AI 负责结构化分析与辅助实现”的方式完成：
-
-- 人提供真实部署与监控材料，决定功能范围并验证运行结果。
-- AI 协助梳理服务链路、编写可测试代码、生成配置和补充安全检查。
-- 所有 AI 生成的结论均应通过测试、接口响应、日志和官方文档再次验证。
 
 ## License
 
